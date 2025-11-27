@@ -3,7 +3,7 @@
 
 <head>
 	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<title>黄金价格换算（自动汇率）</title>
 	<meta name="description" content="美元/盎司 转 人民币/克，自动获取实时 USD/CNY 汇率，并展示 3800-4200 每 $10 的换算表。">
 	<style>
@@ -389,6 +389,90 @@
 
 		.error {
 			color: var(--danger);
+		}
+
+		/* --- 设备适配与移动端优化补充 --- */
+		/* 媒体元素自适应容器，防止横向溢出 */
+		img,
+		video,
+		canvas,
+		svg {
+			display: block;
+			max-width: 100%;
+			height: auto;
+		}
+
+		/* 避免 iOS 自动放大与不必要的高亮 */
+		html {
+			-webkit-text-size-adjust: 100%;
+			text-size-adjust: 100%;
+		}
+
+		body {
+			-webkit-tap-highlight-color: transparent;
+		}
+
+		/* 安全区域内边距（刘海/圆角屏） */
+		.container {
+			padding-top: calc(20px + env(safe-area-inset-top));
+			padding-bottom: calc(16px + env(safe-area-inset-bottom));
+			padding-left: calc(16px + env(safe-area-inset-left));
+			padding-right: calc(16px + env(safe-area-inset-right));
+		}
+
+		/* 中等以下屏幕：栅格与控件堆叠，减少拥挤 */
+		@media (max-width: 720px) {
+			:root {
+				--minh-rate: 120px;
+				--minh-convert: 200px;
+				--minh-table: 320px;
+			}
+
+			.rate-row {
+				grid-template-columns: 1fr;
+			}
+
+			.input-row {
+				grid-template-columns: 1fr;
+			}
+
+			.range-controls {
+				grid-template-columns: 1fr;
+			}
+
+			.range-controls button {
+				width: 100%;
+			}
+
+			table {
+				font-size: 12px;
+			}
+		}
+
+		/* 小屏手机：提高可触达性，防止 iOS 输入放大 */
+		@media (max-width: 480px) {
+
+			.form-field input,
+			.range-controls input {
+				height: 44px;
+				font-size: 16px;
+			}
+
+			.range-controls button {
+				height: 44px;
+			}
+
+			.card {
+				padding: 14px;
+			}
+
+			.card h2 {
+				font-size: 15px;
+			}
+
+			.result {
+				font-size: 17px;
+			}
 		}
 	</style>
 </head>
