@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>黄金价格换算（自动汇率）</title>
+	<meta name="description" content="美元/盎司 转 人民币/克，自动获取实时 USD/CNY 汇率，并展示 3800-4200 每 $10 的换算表。">
+	<style>
+		:root {
+			--bg: #0b0d10;
+			--card: #12161c;
+			--muted: #7f8b9a;
+			--text: #e6ecf2;
+			--accent: #2dd4bf;
+			--accent-weak: #1fa59a;
+			--danger: #ef4444;
+			--border: #1e2630;
+			/* 区块最小高度 */
+			--minh-rate: 140px;
+			--minh-convert: 220px;
+			--minh-table: 420px;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		html,
+		body {
+			margin: 0;
+			padding: 0;
+			background: var(--bg);
+			color: var(--text);
+			font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+			height: 100%;
+		}
+
+		body {
+			overflow: hidden;
+		}
+
+		a {
+			color: var(--accent);
+			text-decoration: none;
+		}
+
+		.container {
+			max-width: 1100px;
+			margin: 0 auto;
+			padding: 20px 16px 16px;
+			display: flex;
+			flex-direction: column;
+			min-height: 100vh;
+			height: 100vh;
+		}
+
+		header {
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			margin-bottom: 16px;
+		}
+
+		h1 {
+			font-size: 22px;
+			margin: 0;
+			font-weight: 700;
+			letter-spacing: .2px;
+		}
+
+		.subtle {
+			color: var(--muted);
+			font-size: 13px;
+		}
+
+		/* 主布局：左右两栏，左栏上下两卡片，右栏表格卡片占满 */
+		.layout {
+			display: grid;
+			grid-template-columns: 1.35fr 1fr;
+			grid-template-rows: auto 1fr;
+			grid-template-areas:
+				"rate table"
+				"convert table";
+			gap: 14px;
+			flex: 1;
+			min-height: 0;
+			/* 允许子元素内部滚动 */
+			height: 100%;
+		}
+
+		.card--rate {
+			grid-area: rate;
+			min-height: var(--minh-rate);
+		}
+
+		.card--convert {
+			grid-area: convert;
+		}
+
+		/* 即时换算随内容高度 */
+		.card--convert {
+			align-self: start;
+			min-height: var(--minh-convert);
+		}
+
+		.card--table {
+			grid-area: table;
+			display: flex;
+			flex-direction: column;
+			min-height: 0;
+			height: 100%;
+			align-self: stretch;
+			min-height: var(--minh-table);
+		}
+
+		.grid {
+			display: grid;
+			grid-template-columns: 1fr;
+			gap: 14px;
+		}
+
+		@media (min-width: 960px) {
+			.grid {
+				grid-template-columns: 1.2fr 1fr;
+			}
+		}
+
+		@media (max-width: 960px) {
+			body {
+				overflow: auto;
+			}
+
+			.container {
+				height: auto;
+			}
+
+			.layout {
+				grid-template-columns: 1fr;
+				grid-template-rows: auto auto 1fr;
+				grid-template-areas:
+					"rate"
+					"convert"
+					"table";
+				height: auto;
+			}
+		}
+
+		.card {
+			background: var(--card);
+			border: 1px solid var(--border);
+			border-radius: 12px;
+			padding: 16px;
+			box-shadow: 0 2px 14px rgba(0, 0, 0, .25);
+		}
+
+		.card h2 {
+			margin: 0 0 12px;
+			font-size: 16px;
+		}
+
+		.rate-row {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 10px;
+			margin-bottom: 8px;
+		}
+
+		.rate {
+			display: flex;
+			align-items: baseline;
+			gap: 8px;
+			font-size: 15px;
+		}
+
+		.rate .label {
+			color: var(--muted);
+			font-size: 12px;
+		}
+
+		.badge {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			border: 1px solid var(--border);
+			border-radius: 999px;
+			padding: 4px 10px;
+			font-size: 12px;
+			color: var(--muted);
+			margin-top: 8px;
+		}
+
+		.input-row {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 10px;
+			margin-top: 8px;
+		}
+
+		.form-field {
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+		}
+
+		.form-field label {
+			font-size: 12px;
+			color: var(--muted);
+		}
+
+		.form-field input {
+			background: #0f1318;
+			color: var(--text);
+			border: 1px solid var(--border);
+			border-radius: 10px;
+			height: 40px;
+			padding: 0 12px;
+			font-size: 14px;
+			outline: none;
+		}
+
+		.form-field input:focus {
+			border-color: var(--accent);
+			box-shadow: 0 0 0 3px rgba(45, 212, 191, .15);
+		}
+
+		.result {
+			margin-top: 10px;
+			font-size: 18px;
+			font-weight: 700;
+		}
+
+		.hint {
+			margin-top: 6px;
+			color: var(--muted);
+			font-size: 12px;
+		}
+
+		.table-wrap {
+			margin-top: 6px;
+			border: 1px solid var(--border);
+			border-radius: 12px;
+			overflow: hidden;
+		}
+
+		/* 表格卡片内独立滚动 */
+		.card--table .table-wrap {
+			flex: 1;
+			min-height: 0;
+			overflow: auto;
+			-webkit-overflow-scrolling: touch;
+		}
+
+		/* 区间控件 */
+		.range-controls {
+			display: grid;
+			grid-template-columns: auto 1fr auto 1fr auto 1fr auto;
+			gap: 8px;
+			align-items: center;
+			margin-top: 8px;
+		}
+
+		.range-controls label {
+			font-size: 12px;
+			color: var(--muted);
+		}
+
+		.range-controls input {
+			background: #0f1318;
+			color: var(--text);
+			border: 1px solid var(--border);
+			border-radius: 10px;
+			height: 36px;
+			padding: 0 10px;
+			font-size: 14px;
+			outline: none;
+		}
+
+		.range-controls input:focus {
+			border-color: var(--accent);
+			box-shadow: 0 0 0 3px rgba(45, 212, 191, .15);
+		}
+
+		.range-controls button {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			gap: 8px;
+			background: linear-gradient(180deg, var(--accent) 0%, #22c8b5 100%);
+			color: #062422;
+			border: 1px solid var(--accent-weak);
+			border-radius: 10px;
+			height: 36px;
+			padding: 0 14px;
+			font-weight: 700;
+			letter-spacing: .3px;
+			cursor: pointer;
+			box-shadow: 0 1px 0 rgba(0, 0, 0, .2), 0 8px 18px rgba(45, 212, 191, .18);
+			transition: transform .06s ease, filter .2s ease, box-shadow .2s ease, background .2s ease;
+			user-select: none;
+			will-change: transform;
+		}
+
+		.range-controls button:hover {
+			filter: brightness(1.04);
+			box-shadow: 0 1px 0 rgba(0, 0, 0, .25), 0 10px 22px rgba(45, 212, 191, .22);
+		}
+
+		.range-controls button:active {
+			transform: translateY(1px) scale(0.99);
+			filter: brightness(0.98);
+		}
+
+		.range-controls button:focus-visible {
+			outline: none;
+			box-shadow: 0 0 0 3px rgba(45, 212, 191, .28), 0 8px 18px rgba(45, 212, 191, .18);
+		}
+
+		.range-controls button[disabled] {
+			opacity: .6;
+			cursor: not-allowed;
+			filter: grayscale(.1);
+		}
+
+		.range-controls button .icon {
+			font-size: 14px;
+			line-height: 1;
+			opacity: .9;
+		}
+
+		table {
+			width: 100%;
+			border-collapse: collapse;
+			font-size: 13px;
+		}
+
+		thead th {
+			text-align: left;
+			background: #0f1318;
+			color: var(--muted);
+			font-weight: 600;
+			padding: 10px 12px;
+			border-bottom: 1px solid var(--border);
+			position: sticky;
+			top: 0;
+			z-index: 2;
+		}
+
+		tbody td {
+			padding: 10px 12px;
+			border-bottom: 1px solid var(--border);
+		}
+
+		tbody tr:hover {
+			background: rgba(255, 255, 255, .02);
+		}
+
+		tbody tr:nth-child(odd) {
+			background: rgba(255, 255, 255, .01);
+		}
+
+		tbody tr.active {
+			background: rgba(45, 212, 191, .10);
+			outline: 1px solid rgba(45, 212, 191, .35);
+		}
+
+		td.num,
+		th.num {
+			text-align: right;
+			font-variant-numeric: tabular-nums;
+			letter-spacing: .2px;
+		}
+
+		.tag {
+			color: #93c5fd;
+			background: rgba(147, 197, 253, .08);
+			border: 1px solid rgba(147, 197, 253, .22);
+			padding: 2px 8px;
+			border-radius: 999px;
+			font-size: 11px;
+		}
+
+		.footer-note {
+			margin-top: 12px;
+			color: var(--muted);
+			font-size: 12px;
+			line-height: 1.6;
+		}
+
+		.error {
+			color: var(--danger);
+		}
+	</style>
+</head>
+
+<body>
+	<div class="container">
+		<header>
+			<h1>黄金价格换算（自动汇率）</h1>
+			<div class="subtle">美元/盎司 → 人民币/克（自动获取 USD/CNY 实时汇率，含可配置区间换算表）</div>
+		</header>
+
+		<div class="layout">
+			<section class="card card--rate" aria-live="polite">
+				<h2>实时汇率</h2>
+				<div class="rate-row">
+					<div class="rate">
+						<span class="label">1 USD ≈</span>
+						<span id="usdToCny" style="font-weight:700">加载中…</span>
+						<span class="label">CNY</span>
+					</div>
+					<div class="rate">
+						<span class="label">1 CNY ≈</span>
+						<span id="cnyToUsd" style="font-weight:700">加载中…</span>
+						<span class="label">USD</span>
+					</div>
+				</div>
+				<div class="badge">
+					<span id="provider">源：—</span>
+					<span>•</span>
+					<span id="updatedAt">更新：—</span>
+				</div>
+				<div id="rateError" class="hint error" style="display:none;margin-top:8px;">汇率获取失败，正在重试…</div>
+			</section>
+
+			<section class="card card--convert">
+				<h2>即时换算</h2>
+				<div class="input-row">
+					<div class="form-field">
+						<label for="usdPerOz">美元/盎司（USD/oz）</label>
+						<input id="usdPerOz" type="number" inputmode="decimal" placeholder="例如：2300" min="0"
+							step="0.01">
+					</div>
+					<div class="form-field">
+						<label for="rmbPerGram">人民币/克（CNY/g）</label>
+						<input id="rmbPerGram" type="text" placeholder="将自动计算" readonly>
+					</div>
+				</div>
+				<div class="input-row">
+					<div class="form-field">
+						<label for="rmbPerGramIn">人民币/克（CNY/g）</label>
+						<input id="rmbPerGramIn" type="number" inputmode="decimal" placeholder="例如：500" min="0"
+							step="0.0001">
+					</div>
+					<div class="form-field">
+						<label for="usdPerOzOut">美元/盎司（USD/oz）</label>
+						<input id="usdPerOzOut" type="text" placeholder="将自动计算" readonly>
+					</div>
+				</div>
+				<div class="result" id="calcResult">—</div>
+				<div class="result" id="calcResultReverse">—</div>
+				<div class="hint">按金衡盎司计算：1 oz = 31.1034768 g。使用当前 USD/CNY 实时汇率。</div>
+			</section>
+			<section class="card card--table">
+				<h2>区间换算表 <span id="rangeLabel" class="subtle">(3950 – 4200 USD/oz，每 $10 一档)</span></h2>
+				<div class="range-controls" role="group" aria-label="区间设置">
+					<label for="rangeStart">起始</label>
+					<input id="rangeStart" type="number" inputmode="numeric" step="10" min="0" placeholder="例如 3950"
+						value="3950">
+					<label for="rangeEnd">结束</label>
+					<input id="rangeEnd" type="number" inputmode="numeric" step="10" min="0" placeholder="例如 4200"
+						value="4200">
+					<label for="rangeStep">步长</label>
+					<input id="rangeStep" type="number" inputmode="numeric" step="1" min="1" placeholder="例如 10"
+						value="10">
+					<button id="rangeApply" type="button" title="按回车也可以计算">
+						<span class="icon" aria-hidden="true">↻</span>
+						<span>计算</span>
+					</button>
+				</div>
+				<div class="table-wrap">
+					<table>
+						<thead>
+							<tr>
+								<th class="num">美元/盎司</th>
+								<th class="num">人民币/克</th>
+								<th><span class="tag">基于实时 USD/CNY</span></th>
+							</tr>
+						</thead>
+						<tbody id="rangeTableBody">
+							<tr>
+								<td colspan="3" class="subtle">加载中…</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<div class="footer-note">说明：表格中的人民币/克将随汇率变化自动更新；不代表任何投资建议。</div>
+			</section>
+		</div>
+	</div>
+
+	<script>
+		// 常量
+		const GRAMS_PER_TROY_OUNCE = 31.1034768;
+		const POLL_INTERVAL_MS = 60_000; // 60 秒刷新
+
+		// 状态
+		let latestUsdCny = null; // number
+		let latestProvider = null; // string
+		let pollTimer = null;
+
+		// DOM
+		const $usdToCny = document.getElementById('usdToCny');
+		const $cnyToUsd = document.getElementById('cnyToUsd');
+		const $provider = document.getElementById('provider');
+		const $updatedAt = document.getElementById('updatedAt');
+		const $rateError = document.getElementById('rateError');
+		const $usdPerOz = document.getElementById('usdPerOz');
+		const $rmbPerGram = document.getElementById('rmbPerGram');
+		const $calcResult = document.getElementById('calcResult');
+		const $rmbPerGramIn = document.getElementById('rmbPerGramIn');
+		const $usdPerOzOut = document.getElementById('usdPerOzOut');
+		const $calcResultReverse = document.getElementById('calcResultReverse');
+		const $rangeTableBody = document.getElementById('rangeTableBody');
+		const $rangeStart = document.getElementById('rangeStart');
+		const $rangeEnd = document.getElementById('rangeEnd');
+		const $rangeStep = document.getElementById('rangeStep');
+		const $rangeApply = document.getElementById('rangeApply');
+		const $rangeLabel = document.getElementById('rangeLabel');
+
+		// 区间状态（默认 3950-4200）
+		let rangeStart = 3950;
+		let rangeEnd = 4200;
+		let rangeStep = 10;
+		let usdToRow = new Map();
+
+		function formatNumber(value, fractionDigits = 4) {
+			if (value == null || Number.isNaN(value)) return '—';
+			return Number(value).toLocaleString('zh-CN', {
+				minimumFractionDigits: fractionDigits,
+				maximumFractionDigits: fractionDigits
+			});
+		}
+
+		function nowString() {
+			const d = new Date();
+			const y = d.getFullYear();
+			const m = String(d.getMonth() + 1).padStart(2, '0');
+			const da = String(d.getDate()).padStart(2, '0');
+			const hh = String(d.getHours()).padStart(2, '0');
+			const mm = String(d.getMinutes()).padStart(2, '0');
+			const ss = String(d.getSeconds()).padStart(2, '0');
+			return `${y}-${m}-${da} ${hh}:${mm}:${ss}`;
+		}
+
+		// 多源汇率获取，带 fallback（全部无需密钥）
+		function fetchJsonWithTimeout(url, timeoutMs = 8000) {
+			const controller = new AbortController();
+			const timer = setTimeout(() => controller.abort(), timeoutMs);
+			return fetch(url, { cache: 'no-store', signal: controller.signal })
+				.finally(() => clearTimeout(timer))
+				.then(res => {
+					if (!res.ok) throw new Error(`http ${res.status}`);
+					return res.json();
+				});
+		}
+
+		async function fetchUsdCnyRate() {
+			const providers = [
+				{
+					name: 'frankfurter.app',
+					fn: async () => {
+						const url = 'https://api.frankfurter.app/latest?from=USD&to=CNY';
+						const json = await fetchJsonWithTimeout(url);
+						const rate = json && json.rates && json.rates.CNY;
+						if (!rate) throw new Error('frankfurter bad payload');
+						return rate;
+					}
+				},
+				{
+					name: 'open.er-api.com',
+					fn: async () => {
+						const url = 'https://open.er-api.com/v6/latest/USD';
+						const json = await fetchJsonWithTimeout(url);
+						const rate = json && json.rates && json.rates.CNY;
+						if (!rate) throw new Error('er-api bad payload');
+						return rate;
+					}
+				},
+				{
+					name: 'currency-api (jsdelivr mirror)',
+					fn: async () => {
+						const url = 'https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/latest/currencies/usd/cny.json';
+						const json = await fetchJsonWithTimeout(url);
+						const rate = json && (json.cny || json.CNY);
+						if (!rate) throw new Error('currency-api bad payload');
+						return rate;
+					}
+				},
+				{
+					name: 'Coinbase',
+					fn: async () => {
+						const url = 'https://api.coinbase.com/v2/exchange-rates?currency=USD';
+						const json = await fetchJsonWithTimeout(url);
+						const rate = json && json.data && json.data.rates && (json.data.rates.CNY || json.data.rates.cny);
+						if (!rate) throw new Error('coinbase bad payload');
+						return rate;
+					}
+				},
+				{
+					name: 'Floatrates',
+					fn: async () => {
+						const url = 'https://www.floatrates.com/daily/usd.json';
+						const json = await fetchJsonWithTimeout(url);
+						const rate = json && json.cny && json.cny.rate;
+						if (!rate) throw new Error('floatrates bad payload');
+						return rate;
+					}
+				},
+				{
+					name: 'AwesomeAPI',
+					fn: async () => {
+						const url = 'https://economia.awesomeapi.com.br/json/last/USDCNY';
+						const json = await fetchJsonWithTimeout(url);
+						const rate = json && json.USDCNY && (json.USDCNY.bid || json.USDCNY.ask);
+						if (!rate) throw new Error('awesomeapi bad payload');
+						return rate;
+					}
+				}
+			];
+
+			let lastError = null;
+			for (const p of providers) {
+				try {
+					const rate = await p.fn();
+					return { rate: Number(rate), provider: p.name };
+				} catch (e) {
+					lastError = e;
+					// 继续尝试下一个
+				}
+			}
+			throw lastError || new Error('All providers failed');
+		}
+
+		function updateRateUI() {
+			if (!latestUsdCny) return;
+			$usdToCny.textContent = formatNumber(latestUsdCny, 6);
+			$cnyToUsd.textContent = formatNumber(1 / latestUsdCny, 6);
+			$provider.textContent = `源：${latestProvider}`;
+			$updatedAt.textContent = `更新：${nowString()}`;
+		}
+
+		function computeRmbPerGram(usdPerOz, usdCny) {
+			if (usdPerOz == null || usdCny == null) return null;
+			return (usdPerOz * usdCny) / GRAMS_PER_TROY_OUNCE;
+		}
+
+		function computeUsdPerOz(rmbPerGram, usdCny) {
+			if (rmbPerGram == null || usdCny == null) return null;
+			return (rmbPerGram * GRAMS_PER_TROY_OUNCE) / usdCny;
+		}
+
+		function refreshInstantCalc() {
+			const usdPerOzVal = Number($usdPerOz.value);
+			if (!latestUsdCny || !usdPerOzVal || Number.isNaN(usdPerOzVal)) {
+				$rmbPerGram.value = '';
+				$calcResult.textContent = '—';
+				return;
+			}
+			const rmbPerGram = computeRmbPerGram(usdPerOzVal, latestUsdCny);
+			$rmbPerGram.value = formatNumber(rmbPerGram, 4);
+			$calcResult.textContent = `${formatNumber(usdPerOzVal, 2)} USD/oz ≈ ${formatNumber(rmbPerGram, 4)} CNY/g`;
+		}
+
+		function refreshReverseCalc() {
+			const rmbPerGramVal = Number($rmbPerGramIn && $rmbPerGramIn.value);
+			if (!latestUsdCny || !rmbPerGramVal || Number.isNaN(rmbPerGramVal)) {
+				if ($usdPerOzOut) $usdPerOzOut.value = '';
+				if ($calcResultReverse) $calcResultReverse.textContent = '—';
+				return;
+			}
+			const usdPerOz = computeUsdPerOz(rmbPerGramVal, latestUsdCny);
+			if ($usdPerOzOut) $usdPerOzOut.value = formatNumber(usdPerOz, 2);
+			if ($calcResultReverse) $calcResultReverse.textContent = `${formatNumber(rmbPerGramVal, 4)} CNY/g ≈ ${formatNumber(usdPerOz, 2)} USD/oz`;
+			// 同步高亮表格行
+			highlightTableRowByUsd(usdPerOz);
+		}
+
+		function updateRangeUI() {
+			if ($rangeStart) $rangeStart.value = String(rangeStart);
+			if ($rangeEnd) $rangeEnd.value = String(rangeEnd);
+			if ($rangeStep) $rangeStep.value = String(rangeStep);
+			if ($rangeLabel) $rangeLabel.textContent = `(${formatNumber(rangeStart, 0)} – ${formatNumber(rangeEnd, 0)} USD/oz，每 $${formatNumber(rangeStep, 0)} 一档)`;
+		}
+
+		function buildRangeTable() {
+			if (!latestUsdCny) return;
+			const step = Math.max(1, Math.floor(Number(rangeStep) || 10));
+			// 规范化区间（确保从小到大，按 10 美元档位取整）
+			let start = Math.round(Math.min(rangeStart, rangeEnd) / step) * step;
+			let end = Math.round(Math.max(rangeStart, rangeEnd) / step) * step;
+			const frag = document.createDocumentFragment();
+			usdToRow = new Map();
+			for (let usd = start; usd <= end; usd += step) {
+				const tr = document.createElement('tr');
+				const c1 = document.createElement('td');
+				const c2 = document.createElement('td');
+				const c3 = document.createElement('td');
+				const rmbPerGram = computeRmbPerGram(usd, latestUsdCny);
+				c1.className = 'num';
+				c2.className = 'num';
+				c1.textContent = `${formatNumber(usd, 2)} USD/oz`;
+				c2.textContent = `${formatNumber(rmbPerGram, 4)} CNY/g`;
+				c3.textContent = '';
+				tr.dataset.usd = String(usd);
+				tr.appendChild(c1);
+				tr.appendChild(c2);
+				tr.appendChild(c3);
+				usdToRow.set(usd, tr);
+				frag.appendChild(tr);
+			}
+			$rangeTableBody.innerHTML = '';
+			$rangeTableBody.appendChild(frag);
+			highlightTableRowByUsd(Number($usdPerOz.value));
+		}
+
+		function highlightTableRowByUsd(usdInput) {
+			if (!Number.isFinite(usdInput)) {
+				clearActiveRow();
+				return;
+			}
+			const step = Math.max(1, Math.floor(Number(rangeStep) || 10));
+			const minVal = Math.min(rangeStart, rangeEnd);
+			const maxVal = Math.max(rangeStart, rangeEnd);
+			let target = Math.round(usdInput / step) * step;
+			if (target < minVal) target = minVal;
+			if (target > maxVal) target = maxVal;
+			clearActiveRow();
+			let tr = usdToRow.get(target);
+			if (!tr) {
+				// 可能因为四舍五入导致不在 Map 中，尝试向下取整
+				target = Math.floor(usdInput / step) * step;
+				tr = usdToRow.get(target);
+			}
+			if (tr) {
+				tr.classList.add('active');
+				// 滚动至可视
+				tr.scrollIntoView({ block: 'center' });
+			}
+		}
+
+		function clearActiveRow() {
+			const active = $rangeTableBody.querySelector('tr.active');
+			if (active) active.classList.remove('active');
+		}
+
+		async function refreshRateOnce() {
+			try {
+				$rateError.style.display = 'none';
+				const { rate, provider } = await fetchUsdCnyRate();
+				if (!rate || !Number.isFinite(rate)) throw new Error('Invalid rate');
+				latestUsdCny = rate;
+				latestProvider = provider;
+				updateRateUI();
+				refreshInstantCalc();
+				refreshReverseCalc();
+				buildRangeTable();
+			} catch (err) {
+				console.error(err);
+				$rateError.style.display = 'block';
+			}
+		}
+
+		function startPolling() {
+			if (pollTimer) clearInterval(pollTimer);
+			pollTimer = setInterval(refreshRateOnce, POLL_INTERVAL_MS);
+		}
+
+		function init() {
+			// 输入联动
+			$usdPerOz.addEventListener('input', () => {
+				refreshInstantCalc();
+				highlightTableRowByUsd(Number($usdPerOz.value));
+			});
+			if ($rmbPerGramIn) {
+				$rmbPerGramIn.addEventListener('input', () => {
+					refreshReverseCalc();
+				});
+			}
+			// 区间按钮
+			if ($rangeApply) {
+				$rangeApply.addEventListener('click', () => {
+					const s = Number($rangeStart.value);
+					const e = Number($rangeEnd.value);
+					const st = Number($rangeStep.value);
+					if (Number.isFinite(s)) rangeStart = s;
+					if (Number.isFinite(e)) rangeEnd = e;
+					if (Number.isFinite(st) && st > 0) rangeStep = Math.floor(st);
+					updateRangeUI();
+					buildRangeTable();
+				});
+				// 支持回车直接计算
+				[$rangeStart, $rangeEnd, $rangeStep].forEach(el => {
+					if (!el) return;
+					el.addEventListener('keydown', (e) => {
+						if (e.key === 'Enter') {
+							$rangeApply.click();
+						}
+					});
+				});
+			}
+			// 初始化区间标签
+			updateRangeUI();
+			// 首次拉取+轮询
+			refreshRateOnce();
+			startPolling();
+		}
+
+		document.addEventListener('DOMContentLoaded', init);
+	</script>
+</body>
+
+</html>
